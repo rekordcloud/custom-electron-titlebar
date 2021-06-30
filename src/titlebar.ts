@@ -240,11 +240,15 @@ export class Titlebar extends Themebar {
 
 		// Maximize/Restore on doubleclick
 		if (isMacintosh) {
-			let isMaximized = this.currentWindow.isMaximized();
 			this._register(addDisposableListener(this.titlebar, EventType.DBLCLICK, () => {
-				isMaximized = !isMaximized;
-				this.onDidChangeMaximized(isMaximized);
-			}));
+        if (this.currentWindow.isMaximized()) {
+          this.currentWindow.unmaximize();
+          this.onDidChangeMaximized(false);
+        } else {
+          this.currentWindow.maximize();
+          this.onDidChangeMaximized(true);
+        }
+      }));
 		}
 
 		// Window Controls (Windows/Linux)
