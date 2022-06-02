@@ -32,11 +32,10 @@
     "dist": "dist"
   },
   "peerDependencies": {
-    "electron": ">10",
-    "@electron/remote": "^1.2.2"
+    "@electron/remote": "^1.2.2",
+    "electron": ">10"
   },
-  "dependencies": {},
   "devDependencies": {
-
+    "typescript": "^4.7.2"
   }
 }

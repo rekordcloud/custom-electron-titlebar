@@ -1,9 +1,10 @@
 import { ipcMain, Menu, BrowserWindow, webContents } from "electron"
+import * as remote from '@electron/remote';
 
 export function enableNativeMenuCommands(): void {
 
   ipcMain.on('execute-menu-command', (_, arg: { role: string }): void => {
-    const menu = Menu.getApplicationMenu()
+    const menu = remote.Menu.getApplicationMenu()
 
     if (menu !== null) {
       executeCommandByRole(arg.role, menu)

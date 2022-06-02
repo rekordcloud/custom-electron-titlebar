@@ -9,7 +9,7 @@
  *-------------------------------------------------------------------------------------------------------*/
 
 import { Color } from './common/color';
-import { remote, MenuItem, Menu } from 'electron';
+import { MenuItem, Menu } from 'electron';
 import { $, addDisposableListener, EventType, removeClass, addClass, append, removeNode, isAncestor, EventLike, EventHelper } from './common/dom';
 import { CETMenu, cleanMnemonic, MENU_MNEMONIC_REGEX, MENU_ESCAPED_MNEMONIC_REGEX, IMenuOptions, IMenuStyle } from './menu/menu';
 import { StandardKeyboardEvent } from './browser/keyboardEvent';
@@ -18,6 +18,7 @@ import { Disposable, IDisposable, dispose } from './common/lifecycle';
 import { Event, Emitter } from './common/event';
 import { domEvent } from './browser/event';
 import { isMacintosh } from './common/platform';
+import * as remote from '@electron/remote';
 
 export interface MenubarOptions {
 	/**
