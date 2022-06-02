@@ -38,7 +38,8 @@
     "dist": "dist"
   },
   "peerDependencies": {
-    "electron": ">10"
+    "electron": ">10",
+    "@electron/remote": "^1.2.2"
   },
   "devDependencies": {
     "@babel/core": "^7.16.12",

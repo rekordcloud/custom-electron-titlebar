@@ -1,5 +1,6 @@
 // Modules to control application life and create native browser window
 const { app, BrowserWindow, Menu } = require('electron');
+const Remote = require('@electron/remote/main')
 const path = require('path');
 const { setupTitlebar, attachTitlebarToWindow } = require('custom-electron-titlebar/main');
 // setup the titlebar main process
@@ -20,7 +21,7 @@ createWindow = () => {
   const menu = Menu.buildFromTemplate(exampleMenuTemplate());
   Menu.setApplicationMenu(menu);
 
-
+  Remote.initialize()
 
   // and load the index.html of the app.
   mainWindow.loadFile('index.html');

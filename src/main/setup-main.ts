@@ -1,11 +1,12 @@
 export = () => {
     if (process.type !== 'browser') return;
 
-    const { BrowserWindow, Menu, ipcMain } = require('electron');
+    const { BrowserWindow, ipcMain } = require('electron');
+    import * as remote from '@electron/remote';
 
     // send menu to renderer title bar process
     ipcMain.handle('request-application-menu', async () => JSON.parse(JSON.stringify(
-        Menu.getApplicationMenu(),
+        remote.Menu.getApplicationMenu(),
         (key: string, value: any) => (key !== 'commandsMap' && key !== 'menu') ? value : undefined)
     ));
 
@@ -31,7 +32,7 @@ export = () => {
     });
 
     ipcMain.on('menu-event', (event, commandId: Number) => {
-        const item = getMenuItemByCommandId(commandId, Menu.getApplicationMenu());
+        const item = getMenuItemByCommandId(commandId, remote.Menu.getApplicationMenu());
         item?.click(undefined, BrowserWindow.fromWebContents(event.sender), event.sender);
     });
 }
