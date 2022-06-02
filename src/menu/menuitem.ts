@@ -9,13 +9,11 @@
  *-------------------------------------------------------------------------------------------------------*/
 
 import { EventType, addDisposableListener, addClass, removeClass, removeNode, append, $, hasClass, EventHelper, EventLike } from "../common/dom";
-import { MenuItem } from "electron";
+import { BrowserWindow, remote, Accelerator, NativeImage, MenuItem, ipcRenderer } from "electron";
 import { IMenuStyle, MENU_MNEMONIC_REGEX, cleanMnemonic, MENU_ESCAPED_MNEMONIC_REGEX, IMenuOptions } from "./menu";
 import { KeyCode, KeyCodeUtils } from "../common/keyCodes";
 import { Disposable } from "../common/lifecycle";
 import { isMacintosh } from "../common/platform";
-import { MenubarOptions } from "../interfaces";
-import defaultIcons from '../styles/icons.json';
 
 export interface IMenuItem {
 	render(element: HTMLElement): void;
@@ -28,29 +26,28 @@ export interface IMenuItem {
 
 export class CETMenuItem extends Disposable implements IMenuItem {
 
-	protected menubarOptions: MenubarOptions;
 	protected options: IMenuOptions;
 	protected menuStyle: IMenuStyle;
 	protected container: HTMLElement;
 	protected itemElement: HTMLElement;
 
 	private item: MenuItem;
-
-	private radioGroup: { start: number, end: number }; // used only if item.type === "radio"
 	private labelElement: HTMLElement;
+	private checkElement: HTMLElement;
 	private iconElement: HTMLElement;
 	private mnemonic: KeyCode;
-	protected closeSubMenu: () => void;
-	protected menuContainer: IMenuItem[];
+	private closeSubMenu: () => void;
 
-	constructor(item: MenuItem, menubarOptions: MenubarOptions, options: IMenuOptions = {}, closeSubMenu = () => { }, menuContainer: IMenuItem[] = undefined) {
+	private event: Electron.Event;
+	private currentWindow: BrowserWindow;
+
+	constructor(item: MenuItem, options: IMenuOptions = {}, closeSubMenu = () => { }) {
 		super();
 
 		this.item = item;
-		this.menubarOptions = menubarOptions;
 		this.options = options;
+		this.currentWindow = remote.getCurrentWindow();
 		this.closeSubMenu = closeSubMenu;
-		this.menuContainer = menuContainer;
 
 		// Set mnemonic
 		if (this.item.label && options.enableMnemonics) {
@@ -106,29 +103,20 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 			}));
 		});
 
-		this.itemElement = append(this.container, $('a.cet-action-menu-item'));
-		let role = 'menuitem';
-		switch (this.item.type) {
-			case 'checkbox':
-			case 'radio':
-				role += this.item.type;
-				break;
-			case 'separator':
-				role = this.item.type;
-				break;
-			case 'submenu':
-				this.itemElement.setAttribute('aria-haspopup', 'true');
-		}
-		this.itemElement.setAttribute('role', role);
+		this.itemElement = append(this.container, $('a.action-menu-item'));
+		this.itemElement.setAttribute('role', 'menuitem');
 
 		if (this.mnemonic) {
 			this.itemElement.setAttribute('aria-keyshortcuts', `${this.mnemonic}`);
 		}
 
-		this.iconElement = append(this.itemElement, $('span.cet-menu-item-icon'));
+		this.checkElement = append(this.itemElement, $('span.menu-item-check'));
+		this.checkElement.setAttribute('role', 'none');
+
+		this.iconElement = append(this.itemElement, $('span.menu-item-icon'));
 		this.iconElement.setAttribute('role', 'none');
 
-		this.labelElement = append(this.itemElement, $('span.cet-action-label'));
+		this.labelElement = append(this.itemElement, $('span.action-label'));
 
 		this.setAccelerator();
 		this.updateLabel();
@@ -141,17 +129,20 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 
 	onClick(event: EventLike) {
 		EventHelper.stop(event, true);
-		this.menubarOptions.onMenuItemClick(this.item.commandId);
+
+    if (this.item.role) {
+      ipcRenderer.send('execute-menu-command', {
+        role: this.item.role
+      })
+    } else if (this.item.click) {
+      this.item.click(this.item, this.currentWindow, this.event);
+    }
 
 		if (this.item.type === 'checkbox') {
 			this.item.checked = !this.item.checked;
 			this.updateChecked();
-		} else if (this.item.type === 'radio') {
-			this.updateRadioGroup();
-		} else {
-			this.closeSubMenu();
 		}
-
+		this.closeSubMenu();
 	}
 
 	focus(): void {
@@ -283,23 +274,15 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 	}
 
 	updateIcon(): void {
-		if (this.item.icon) {
-			const icon = this.item.icon;
+		let icon: string | NativeImage | null = null;
 
-			if (icon) {
-				const iconE = append(this.iconElement, $('img'));
-				iconE.setAttribute('src', icon.toString());
-			}
-		} else if (this.item.type === 'checkbox') {
-			addClass(this.iconElement, 'checkbox');
-			this.iconElement.innerHTML = defaultIcons.check;
-		} else if (this.item.type === 'radio') {
-			addClass(this.iconElement, 'radio');
-			this.iconElement.innerHTML = this.item.checked ? defaultIcons.radio.checked : defaultIcons.radio.unchecked ;
+		if (this.item.icon) {
+			icon = this.item.icon;
 		}
 
-		if (this.iconElement.firstElementChild) {
-			this.iconElement.firstElementChild.setAttribute('fill', this.menubarOptions.svgColor?.toString() || this.menuStyle?.foregroundColor?.toString() || undefined)
+		if (icon) {
+			const iconE = append(this.iconElement, $('img'));
+			iconE.setAttribute('src', icon.toString());
 		}
 	}
 
@@ -321,7 +304,7 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 		}
 	}
 
-	updateEnabled(): void {
+	updateEnabled() {
 		if (this.item.enabled && this.item.type !== 'separator') {
 			removeClass(this.container, 'disabled');
 			this.container.tabIndex = 0;
@@ -330,62 +313,22 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 		}
 	}
 
-	updateVisibility(): void {
+	updateVisibility() {
 		if (this.item.visible === false && this.itemElement) {
 			this.itemElement.remove();
 		}
 	}
 
-	updateChecked(): void {
+	updateChecked() {
 		if (this.item.checked) {
 			addClass(this.itemElement, 'checked');
+			this.itemElement.setAttribute('role', 'menuitemcheckbox');
 			this.itemElement.setAttribute('aria-checked', 'true');
 		} else {
 			removeClass(this.itemElement, 'checked');
+			this.itemElement.setAttribute('role', 'menuitem');
 			this.itemElement.setAttribute('aria-checked', 'false');
 		}
-	}
-
-	updateRadioGroup(): void {
-		if (this.radioGroup === undefined) {
-			this.radioGroup = this.getRadioGroup();
-		}
-		for (let i = this.radioGroup.start; i < this.radioGroup.end; i++) {
-			const menuItem = this.menuContainer[i];
-			if (menuItem instanceof CETMenuItem && menuItem.item.type === 'radio') {
-				// update item.checked for each radio button in group
-				menuItem.item.checked = menuItem === this; 
-				menuItem.updateIcon();
-				// updateChecked() *all* radio buttons in group
-				menuItem.updateChecked();
-				// set the radioGroup property of all the other radio buttons since it was already calculated
-				if (menuItem !== this) {
-					menuItem.radioGroup = this.radioGroup;
-				}
-			}
-		}
-	}
-
-	/** radioGroup index's starts with (previous separator +1 OR menuContainer[0]) and ends with (next separator OR menuContainer[length]) */
-	getRadioGroup(): { start: number, end: number } {
-		let startIndex = 0;
-		let endIndex = this.menuContainer.length;
-		let found = false;
-
-		for (const index in this.menuContainer) {
-			const menuItem = this.menuContainer[index];
-			if (menuItem === this) {
-				found = true;
-			} else if (menuItem instanceof CETMenuItem && menuItem.isSeparator()) {
-				if (found) {
-					endIndex = Number.parseInt(index);
-					break;
-				} else {
-					startIndex = Number.parseInt(index) + 1;
-				}
-			}
-		}
-		return { start: startIndex, end: endIndex };
 	}
 
 	dispose(): void {
@@ -401,15 +344,16 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 		return this.mnemonic;
 	}
 
-	protected applyStyle(): void {
+	protected applyStyle() {
 		if (!this.menuStyle) {
 			return;
 		}
 
 		const isSelected = this.container && hasClass(this.container, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
-		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : null;
+		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
 
+		this.checkElement.style.backgroundColor = fgColor ? fgColor.toString() : null;
 		this.itemElement.style.color = fgColor ? fgColor.toString() : null;
 		this.itemElement.style.backgroundColor = bgColor ? bgColor.toString() : null;
 	}
@@ -420,7 +364,7 @@ export class CETMenuItem extends Disposable implements IMenuItem {
 	}
 }
 
-function parseAccelerator(a: any): string {
+function parseAccelerator(a: Accelerator): string {
 	var accelerator = a.toString();
 
 	if (!isMacintosh) {

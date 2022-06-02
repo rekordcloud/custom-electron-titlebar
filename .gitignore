@@ -188,6 +188,7 @@ typings/
 .nuxt
 dist
 *.map
+package-lock.json
 
 # Gatsby files
 .cache/

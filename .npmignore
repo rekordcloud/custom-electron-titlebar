@@ -4,8 +4,6 @@
 .idea/
 
 # for npm
-.vscode/
-.github/
 node_modules/
 npm-shrinkwrap.json
 
@@ -15,8 +13,8 @@ typings/
 espowered/
 
 # for https://github.com/Microsoft/TypeScript/issues/4667
-dist/**/*.ts
-!dist/**/*.d.ts
+lib/**/*.ts
+!lib/**/*.d.ts
 
 # codes
 test/
@@ -34,5 +32,3 @@ tslint.json
 tsconfig.json
 
 npm-debug.log
-webpack.config.js
-._config.yml
